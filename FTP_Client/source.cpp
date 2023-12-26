@@ -25,7 +25,7 @@ void mainMenu()
 	unsigned short serverControlPort = 21; // control connection port (L)
 	//unsigned short clientControlPort; //  control connection port (U)
 	unsigned short serverDataPort = 20; // data connection port = control port(L) - 1 
-	unsigned short clientDataPort; //  data connection port = control port (U)
+	unsigned short clientDataPort; //  data connection port = control port (U) - 1
 	int error = WSAStartup(0x0202, &wsadata);
 	if (error){
 		puts("can't initiate network requirements of windows");
@@ -51,18 +51,20 @@ void mainMenu()
 		exit(EXIT_FAILURE);
 	}
 	SOCKET clientDataSock;
-	clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+	clientDataSock = clientSock;
 	sockaddr_in clientDataConnectionAddr;
-	clientDataConnectionAddr.sin_family=AF_INET;
-	clientDataConnectionAddr.
-	clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
-	bind(clientDataSock,
-
+	// clientDataPort = clientSock.port albate felan niazi be peyda kardane oon nadarim...
+	// below
 	struct sockaddr_in clientAddr;
 	int clientAddrLen;
-	//getsockname(clientSock, (struct sockaddr*) &clientAddr,&clientAddrLen);  // niazi behesh nashod
-	//clientDataPort=ntohs(clientAddr.sin_port);				// niazi behesh peyda nashod
+	getsockname(clientSock, (struct sockaddr*) &clientAddr,&clientAddrLen);
 	//printf("%hu", ntohs(clientAddr.sin_port));  // for debugging
+	clientDataPort=ntohs(clientAddr.sin_port) - 1;
+	clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+	clientDataConnectionAddr.sin_family=AF_INET;;
+	clientDataConnectionAddr.sin_port=htons(clientDataPort);
+	clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
+	bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
 	int sendStatus;
 	do
 	{
@@ -128,6 +130,13 @@ void mainMenu()
 		else if (strcmp(method, "PORT") == 0) // sets client data port
 		{
 			sendStatus=send(clientSock,command,strlen(command)+1,0);
+			clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+			clientDataConnectionAddr.sin_family=AF_INET;
+			sscanf(argument , "%hu" , &clientDataPort);
+			clientDataConnectionAddr.sin_port=htons(clientDataPort);
+			clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
+			bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
+			
 		}
 
 	}while (true);
