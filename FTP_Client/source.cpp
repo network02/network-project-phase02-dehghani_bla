@@ -44,7 +44,9 @@ void mainMenu()
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(serverControlPort);
 	serverAddr.sin_addr.S_un.S_addr = inet_addr(serverIpAddress);
+	//printf("%hu\n" , ntohl(serverAddr.sin_port)); // for debugging
 	int connectionStatus = connect(clientSock, (struct sockaddr *) & serverAddr, sizeof(serverAddr));
+	//printf("%hu\n" , ntohs(serverAddr.sin_port)); // for debugging (if connected a new socket in server is created and port number must be changed ! )
 	if (connectionStatus == SOCKET_ERROR){
 		puts("can't connect to server please check your network connection and then try again!");
 		system("pause");
@@ -56,7 +58,7 @@ void mainMenu()
 	// clientDataPort = clientSock.port albate felan niazi be peyda kardane oon nadarim...
 	// below
 	struct sockaddr_in clientAddr;
-	int clientAddrLen;
+	int clientAddrLen = sizeof(clientAddr);
 	getsockname(clientSock, (struct sockaddr*) &clientAddr,&clientAddrLen);
 	//printf("%hu", ntohs(clientAddr.sin_port));  // for debugging
 	clientDataPort=ntohs(clientAddr.sin_port) - 1;

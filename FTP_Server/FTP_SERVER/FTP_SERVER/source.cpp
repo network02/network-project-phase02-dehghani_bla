@@ -57,7 +57,7 @@ void service(void)
 	}
 	int connectedControlSock;
 	struct sockaddr_in clientAddr;
-	int clientAddrLen;
+	int clientAddrLen = sizeof(clientAddr); // this code is NEEDED (else error cde 10014 will occure in accept ! )
 	do
 	{
 		connectedControlSock=accept(serverSock , (struct sockaddr *) &clientAddr , &clientAddrLen);
