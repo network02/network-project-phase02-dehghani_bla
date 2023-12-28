@@ -28,7 +28,7 @@ void mainMenu()
 	unsigned short clientDataPort; //  data connection port = control port (U) - 1
 	int error = WSAStartup(0x0202, &wsadata);
 	if (error){
-		puts("can't initiate network requirements of windows");
+		puts("can't start windows socket 2 !");
 		system("pause");
 		exit(EXIT_FAILURE);
 	}
@@ -55,8 +55,8 @@ void mainMenu()
 	SOCKET clientDataSock;
 	clientDataSock = clientSock;
 	sockaddr_in clientDataConnectionAddr;
-	// clientDataPort = clientSock.port albate felan niazi be peyda kardane oon nadarim...
-	// below
+	//  code below was for assign port number of <clientSock> - 1 to clientDataSock (getsockname should be after connecting of clientSock !)
+	/*
 	struct sockaddr_in clientAddr;
 	int clientAddrLen = sizeof(clientAddr);
 	getsockname(clientSock, (struct sockaddr*) &clientAddr,&clientAddrLen);
@@ -67,6 +67,7 @@ void mainMenu()
 	clientDataConnectionAddr.sin_port=htons(clientDataPort);
 	clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
 	bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
+	*/
 	int sendStatus;
 	do
 	{
@@ -129,7 +130,7 @@ void mainMenu()
 		{
 			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
-		else if (strcmp(method, "PORT") == 0) // sets client data port
+		else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port
 		{
 			sendStatus=send(clientSock,command,strlen(command)+1,0);
 			clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);

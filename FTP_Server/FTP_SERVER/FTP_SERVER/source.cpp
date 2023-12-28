@@ -18,7 +18,12 @@ void service(void)
 	unsigned short serverControlPort = 21;
 	unsigned short serverDataPort = 20;
 	WSAData wsadata;
-	WSAStartup( MAKEWORD(2,2) , &wsadata);
+	int error=WSAStartup( MAKEWORD(2,2) , &wsadata);
+	if (error) {
+		puts("can't start windows socket 2 !");
+		system("pause");
+		exit(EXIT_FAILURE);
+	}
 	int serverSock = socket(AF_INET , SOCK_STREAM, IPPROTO_IP);
 	int serverDataSock = socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
 	if( (serverSock == INVALID_SOCKET) || (serverDataSock == INVALID_SOCKET) ){
