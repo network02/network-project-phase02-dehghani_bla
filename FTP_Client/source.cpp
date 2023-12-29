@@ -68,71 +68,76 @@ void mainMenu()
 	clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
 	bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
 	*/
+	int i;
 	int sendStatus;
 	do
 	{
 		puts("please enter your command :");
 		fflush(stdin);
 		gets(command);
-		sscanf("%s %s", method, argument);
+		for(i=0;command[i] != ' ';i++){
+			if(command[i]>'a' && command[i] <'z')
+				command[i] = command[i] + 'A' - 'a' ;
+		}
+		sendStatus=send(clientSock,command,strlen(command)+1,0);
+		if(sendStatus == SOCKET_ERROR){
+			printf("can't send command !\tError-Code:%d" , WSAGetLastError());
+			closesocket(clientSock);
+			if(clientDataSock != clientSock)
+				closesocket(clientDataSock);
+			WSACleanup();
+			exit(EXIT_FAILURE);
+		}
+		sscanf(command,"%s %s", method, argument);
 		if (strcmp(method, "USER") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "PASS") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "PASS") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "LIST") == 0)
 		{
 		}
 		else if (strcmp(method, "RETR") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "STOR") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "DELE") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "MKD") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
+
 		}
 		else if (strcmp(method, "RMD") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "PWD") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "CWD") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
 		else if (strcmp(method, "CDUP") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
-		else if (strcmp(method, "QUIT") == 0) // since here PROjECT NEED
+		else if (strcmp(method, "QUIT") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
+		}
+		else if (strcmp(method , "RPRT") == 0)// since here PROjECT NEED
+		{
+			
 		}
 		else if (strcmp(method, "HELP") == 0)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 		}
-		else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port
+		else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port (format of port command: PORT h1,h2,h3,h4,p1,p2)
 		{
-			sendStatus=send(clientSock,command,strlen(command)+1,0);
 			clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
 			clientDataConnectionAddr.sin_family=AF_INET;
 			sscanf(argument , "%hu" , &clientDataPort);
@@ -140,6 +145,10 @@ void mainMenu()
 			clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
 			bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
 			
+		}else
+		{
+			//puts("command not found please try again!");
+
 		}
 
 	}while (true);
