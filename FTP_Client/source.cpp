@@ -70,6 +70,7 @@ void mainMenu()
 	*/
 	int i;
 	int sendStatus;
+	char reply[128];
 	do
 	{
 		puts("please enter your command :");
@@ -86,14 +87,18 @@ void mainMenu()
 			if(clientDataSock != clientSock)
 				closesocket(clientDataSock);
 			WSACleanup();
+			system("pause");
 			exit(EXIT_FAILURE);
 		}
+		recv(clientSock , reply , 128 , 0);
+		puts(reply);
 		sscanf(command,"%s %s", method, argument);
 		if (strcmp(method, "USER") == 0)
 		{
 		}
 		else if (strcmp(method, "PASS") == 0)
 		{
+
 		}
 		else if (strcmp(method, "PASS") == 0)
 		{
@@ -147,7 +152,7 @@ void mainMenu()
 			
 		}else
 		{
-			//puts("command not found please try again!");
+			//puts("502 Command not implemented.!");
 
 		}
 
