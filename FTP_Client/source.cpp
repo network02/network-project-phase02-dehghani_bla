@@ -52,6 +52,7 @@ void mainMenu()
 		system("pause");
 		exit(EXIT_FAILURE);
 	}
+
 	SOCKET clientDataSock;
 	clientDataSock = clientSock;
 	sockaddr_in clientDataConnectionAddr;
@@ -70,19 +71,33 @@ void mainMenu()
 	*/
 	int i;
 	int sendStatus;
+	int receiveStatus;
 	char reply[128];
+	char helpMessage[2048];
+	char historyReport[102400];
 	do
 	{
 		puts("please enter your command :");
 		fflush(stdin);
 		gets(command);
 		for(i=0;command[i] != ' ';i++){
-			if(command[i]>'a' && command[i] <'z')
+			if(command[i]>='a' && command[i] <= 'z')
 				command[i] = command[i] + 'A' - 'a' ;
+		}
+		i=0;
+		while(command[i] == ' ')
+			++i;
+		if(strstr(command + i , "HELP") == command + i) {
+			i+=5;
+			while(command[i]){
+				if (command[i] >='a' && command[i] <='z')
+					command[i] = command[i] + 'A' - 'a';
+				++i;
+			}
 		}
 		sendStatus=send(clientSock,command,strlen(command)+1,0);
 		if(sendStatus == SOCKET_ERROR){
-			printf("can't send command !\tError-Code:%d" , WSAGetLastError());
+			printf("can't send command !\tError-Code : %d\n" , WSAGetLastError());
 			closesocket(clientSock);
 			if(clientDataSock != clientSock)
 				closesocket(clientDataSock);
@@ -136,23 +151,46 @@ void mainMenu()
 		}
 		else if (strcmp(method , "RPRT") == 0)// since here PROjECT NEED
 		{
-			
+			recv(clientSock , historyReport  ,  102400/* 100KB MAX */ , 0);
+			puts(historyReport);
 		}
 		else if (strcmp(method, "HELP") == 0)
 		{
+			 receiveStatus=recv(clientSock , helpMessage , 2048 , 0);
+			 if (receiveStatus == SOCKET_ERROR) {
+				printf("can't receive help from server !\tError-Code : %d\n" , WSAGetLastError());
+				/*closesocket(clientSock);
+				if(clientDataSock != clientSock)
+				closesocket(clientDataSock);
+				WSACleanup();
+				system("pause");
+				exit(EXIT_FAILURE);*/
+			 }
+			 else{
+				puts(helpMessage);
+			 }
+
 		}
 		else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port (format of port command: PORT h1,h2,h3,h4,p1,p2)
 		{
-			clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
-			clientDataConnectionAddr.sin_family=AF_INET;
-			sscanf(argument , "%hu" , &clientDataPort);
-			clientDataConnectionAddr.sin_port=htons(clientDataPort);
-			clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
-			bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
-			
-		}else
+			//clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+			//clientDataConnectionAddr.sin_family=AF_INET;
+			//sscanf(argument , "%hu" , &clientDataPort);
+			//clientDataConnectionAddr.sin_port=htons(clientDataPort);
+			//clientDataConnectionAddr.sin_addr.S_un.S_addr = serverAddr.sin_addr.S_un.S_addr;
+			//bind(clientDataSock,(struct sockaddr *) &clientDataConnectionAddr , sizeof(clientDataConnectionAddr));
+
+		}
+		else if (strcmp(method, "PASV") == 0)
 		{
-			//puts("502 Command not implemented.!");
+		}
+		else if (strcmp(method, "NOOP") == 0)
+		{
+			// NOOP
+		}
+		else
+		{
+			// nothing :|
 
 		}
 

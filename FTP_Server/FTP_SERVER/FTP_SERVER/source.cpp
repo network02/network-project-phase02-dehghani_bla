@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <map>
 #include <string>
+#include <string.h>
 
 void service(void);
 
@@ -34,12 +35,16 @@ void linkedList_pushback(struct linkedList *ll , char const *command){
 	tmp->next = newNode;
 	ll->tail = newNode;
 }
-void linkedList_print(struct linkedList *ll){
+std::string linkedList_print(struct linkedList *ll){
+	std::string res("");
 	struct node *tmp = ll->head;
 	while(tmp){
+		res.append(tmp->command);
+		res.append("\n");
 		puts(tmp->command);
 		tmp = tmp->next;
 	}
+	return res;
 }
 void linkedList_delete( struct linkedList *ll){
 	struct node *tmp = ll->head , *tmp2;
@@ -52,7 +57,8 @@ void linkedList_delete( struct linkedList *ll){
 	ll->size=0;
 }
 
-char reply[39][128]={ 
+char reply[39][128]=
+{ 
  "110 Restart marker reply."
 ,"120 Service ready in nnn minutes."
 ,"125 Data connection already open; transfer starting."
@@ -94,6 +100,25 @@ char reply[39][128]={
 ,"553 Requested action not taken."
 };
 
+char helpMessage[2048]=
+"\t\t\t in the name of GOD\n"
+"server commands and discussions are listed below :\n"
+"1_ \"USER\" : format:(USER <username>) discussion:(this command will send username to server for authentication of user)\n"
+"2_ \"PASS\" : format:(PASS <password>) discussion:(this command usage is after USER command for sending password to the server\n"
+"2_ \"LIST\" : format:(LIST <pathname>) discussion:(this command will list files and directories on server .pathname argument is not mandatory)\n"
+"3_ \"RETR\" : format:(RETR <file pathname>) discussion:(this command will return file stored at pathname on server.)\n"
+"4_ \"STOR\" : format:(STOR <client file pathname> <server file pathname>) discussion:(this command will store client file on server. if in server alredy exist will replace)\n"
+"5_ \"DELE\" : format:(DELE <pathname>) discussion:(this command will delete file stored at pathname on server .)\n"
+"6_ \"MKD\" : format:(MKD <pathname>) discussion:(this command will create a directory on server with address pathname .)\n"
+"7_ \"RMD\" : format:(RMD <pathname>) discussion:(this command will remove a directory on server with address pathname .)\n"
+"8_ \"PWD\" : format:(PWD) discussion:(this command will return working directory address on server(print working directory) .)\n"
+"9_ \"CWD\" : format:(CWD <pathname>) discussion:(this command will change working directory on server to pathname (change working directory) .)\n"
+"10_ \"CDUP\" : format:(CDUP) discussion:(this command will change current direcy to parent of that .)\n"
+"11_ \"QUIT\" : format:(QUIT) discussion:(this command closes client connection between server and client.if a file is transferring the operation will complete and then connection closes .)\n"
+"12_ \"RPRT\" : format:(RPRT) discussion:(this command will return history of all commands has send to server for clients wich have permission .\n"
+"13_ \"HELP\" : format:(HELP <command name>) discussion:(if after HELP without any command name , all server commands help will send ; else command's help will send .\n"
+;
+
 short replyMap[39]=
 {
 	110   ,  120   , 125   ,  150  ,  200   ,  202   ,  211   ,  212   ,
@@ -117,7 +142,7 @@ struct userSpecifications
 	char isAdmin;
 	char hasAccessPrivateFiles;
 	;//etc
-} users[4] = { {"ali" , "123" , 1 , 1} , { "mahdi" , "123" , 0 , 0} , {"ahmad" , "123" , 0 , 1} , {"mahmood" , "123" , 1 , 0} };
+} registeredUsers[4] = { {"ali" , "123" , 1 , 1} , { "mahdi" , "123" , 0 , 0} , {"ahmad" , "123" , 0 , 1} , {"mahmood" , "123" , 1 , 0} };
 
 int main(int argc , char **argv , char **env)
 {
@@ -170,7 +195,8 @@ void service(void)
 		system("pause");
 		exit(EXIT_FAILURE);
 	}
-	status1=listen(serverSock, 1/*SOMAXCONN*/);
+	status1=listen(serverSock, SOMAXCONN);
+	puts("server is listenening on port 21 :");
 	if(status1==SOCKET_ERROR){
 		puts("Error listening on socket!");
 
@@ -183,9 +209,20 @@ void service(void)
 	char method[5];
 	char argument[124];
 	linkedList_init(&historyList);
+	int sscanfRes;
+	char *strstrRes;
+	char helpLine[256];
+	int i;
+	std::string historyStr;
 	do
 	{
+		struct userSpecifications currentUser;
+		currentUser.isAdmin = 1;
+		currentUser.hasAccessPrivateFiles = 0;
+		currentUser.userName[0]=0;
+		currentUser.password[0]=0;
 		connectedControlSock=accept(serverSock , (struct sockaddr *) &clientAddr , &clientAddrLen);
+		puts("a client connected to server .");
 		// send liste farman ha + code
 		if(connectedControlSock == INVALID_SOCKET)
 		{
@@ -197,11 +234,12 @@ void service(void)
 			system("pause");
 			exit(EXIT_FAILURE);
 		}
+		puts("receiving command ...");
 		status1=recv(connectedControlSock , command , 128 , 0);
 		while(status1>0)
 		{
 			linkedList_pushback(&historyList , command);
-			sscanf(command , "%s %s", method , argument);
+			sscanfRes=sscanf(command , "%s %s", method , argument);
 			if (strcmp(method, "USER") == 0)
 			{
 				send(connectedControlSock , reply[reply_code_index_find(331)] , 1 + strlen(reply[reply_code_index_find(331)]) , 0);
@@ -254,29 +292,66 @@ void service(void)
 			{
 				
 			}
-			else if (strcmp(method, "RPRT") == 0) // since here PROjECT NEED
+			else if (strcmp(method, "RPRT") == 0) 
 			{
-				linkedList_print(&historyList);
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				if(currentUser.isAdmin){
+					historyStr=linkedList_print(&historyList);
+					send(connectedControlSock , historyStr.c_str(),historyStr.size() + 1 , 0);
+				}
+				else
+				{
+					send(connectedControlSock , "you don't have needed permissions !" , 1 + 35 , 0 );
+				}
 			}
-			else if (strcmp(method, "HELP") == 0)
+			else if (strcmp(method, "HELP") == 0) // since here PROjECT NEED
 			{
 				send (connectedControlSock , reply[reply_code_index_find(214)] , 1 + strlen(reply[reply_code_index_find(214)]) , 0);
-				// ......
+				if(sscanfRes == 1){
+					send(connectedControlSock , helpMessage , 1 + strlen(helpMessage) , 0 );
+				}
+				else // argument contains a command name
+				{
+					strstrRes=strstr(helpMessage,argument);
+					if(strstrRes == NULL){
+						send(connectedControlSock , "help for this command not found !" , 1+26 , 0);
+					}
+					else
+					{
+						strstrRes-=1;
+						i=0;
+						while((*strstrRes) != '\n'){
+							helpLine[i]=(*strstrRes);
+							++strstrRes;
+							++i;
+						}
+						helpLine[i]='\0';
+						send(connectedControlSock , helpLine , i+1 , 0);
+					}
+				}
+				
 			}
 			else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port (format of port command: PORT h1,h2,h3,h4,p1,p2)
 			{
-
+			}
+			else if (strcmp(method, "PASV") == 0) // 
+			{	
+			}
+			else if (strcmp(method, "NOOP") == 0)
+			{
+				send(connectedControlSock, reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]),0);
 			}
 			else
 			{
 				send(connectedControlSock , reply[reply_code_index_find(502)] , 1 + strlen(reply[reply_code_index_find(502)]) , 0);
 			}
+			puts("receiving command ...");
 			status1=recv(connectedControlSock , command , 128 , 0);
 		}
 		if(status1 == 0){
 			printf("%s" , "connection closed by client !\n");
 		}else if(status1<0){
-			printf("recv failed !\tError-Code:%d -> connection to this client will close soon...\n", WSAGetLastError());
+			printf("recv failed !\tError-Code : %d -> connection to this client will close soon...\n", WSAGetLastError());
 			closesocket(connectedControlSock);
 		}
 	}while(true);
