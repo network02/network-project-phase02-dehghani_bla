@@ -11,7 +11,7 @@ void service(void);
 
 struct node{
 	struct node *next;
-	char command[128];
+	char command[256];
 };
 struct linkedList{
 	struct node *head;
@@ -36,12 +36,13 @@ void linkedList_pushback(struct linkedList *ll , char const *command){
 	tmp->next = newNode;
 	ll->tail = newNode;
 }
-std::string linkedList_print(struct linkedList *ll){
-	std::string res("");
+char *linkedList_print(struct linkedList *ll){
+	char *res= (char *) malloc(1 + ll->size * 256 * sizeof(char));
+	res[0]=0;
 	struct node *tmp = ll->head;
 	while(tmp){
-		res.append(tmp->command);
-		res.append("\n");
+		strcat(res,tmp->command);
+		strcat(res,"\n");
 		puts(tmp->command);
 		tmp = tmp->next;
 	}
@@ -206,16 +207,22 @@ void service(void)
 	struct sockaddr_in clientAddr;
 	int clientAddrLen;
 	clientAddrLen= sizeof(clientAddr); // this line is NEEDED (else error cde 10014 will occure in accept ! )
-	char command[128];
-	char method[5];
-	char argument[124];
+	char command[256];
+	char method[17];
+	char argument[240];
 	linkedList_init(&historyList);
 	int sscanfRes;
 	char *strstrRes;
 	char helpLine[256];
 	int i;
-	std::string historyStr;
-	char str[128];
+	char *historyStr;
+	char str256[256];
+	WIN32_FIND_DATAA ffd; // A is important...
+	DWORD dwError;
+	char str100k[102400];
+	DWORD bufferLength;
+	char *workingDirectory;
+	char str128[128];
 	do
 	{
 		struct userSpecifications currentUser;
@@ -225,7 +232,6 @@ void service(void)
 		currentUser.password[0]=0;
 		connectedControlSock=accept(serverSock , (struct sockaddr *) &clientAddr , &clientAddrLen);
 		puts("a client connected to server .");
-		// send liste farman ha + code
 		if(connectedControlSock == INVALID_SOCKET)
 		{
 			printf("accept failed: %d\n", WSAGetLastError());
@@ -237,7 +243,7 @@ void service(void)
 			exit(EXIT_FAILURE);
 		}
 		puts("receiving command ...");
-		status1=recv(connectedControlSock , command , 128 , 0);
+		status1=recv(connectedControlSock , command , 256 , 0);
 		while(status1>0)
 		{
 			linkedList_pushback(&historyList , command);
@@ -250,12 +256,41 @@ void service(void)
 			{
 				
 			}
-			else if (strcmp(method, "PASS") == 0)
-			{
-				
-			}
 			else if (strcmp(method, "LIST") == 0)
 			{
+
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				strcpy(str256 , argument);
+				if(str256[strlen(str256)-1] != '\\')
+					strcat(str256 , "\\*");
+				else strcat(str256 , "*");
+				HANDLE hFind = FindFirstFileA(str256 ,&ffd); // <A> At end of FindFirstFile is important ...
+				//(about 1 hour it took my time to understand that  for Ascii , FindFirstFile doesn't work and it is defined as FindFirstFileW (Unicode or wide character set) )
+				if (INVALID_HANDLE_VALUE == hFind)
+				{	
+					dwError = GetLastError();
+					sprintf(str128 , "ERROR : An Error Occured with code <%lu>" , dwError);
+					send(connectedControlSock , str128 , 1 + strlen(str128) , 0); 
+				}
+				else
+				{
+					str100k[0] = '\0';
+					do
+					{
+						sprintf(str256 , "%s%s\n" , argument , ffd.cFileName);
+						strcat(str100k , str256);
+					}while(FindNextFileA(hFind , &ffd) != 0); // A is important.
+					dwError = GetLastError();
+					if(dwError != ERROR_NO_MORE_FILES){
+						sprintf(str128 , "ERROR : An Error Occured with code <%lu>" , dwError);
+						send(connectedControlSock , str128 , 1 + strlen(str128) , 0); 
+					}
+					else
+					{
+						send(connectedControlSock , str100k , strlen(str100k) , 0);
+					}
+					FindClose(hFind);
+				}
 
 			}
 			else if (strcmp(method, "RETR") == 0)
@@ -271,20 +306,23 @@ void service(void)
 				send(connectedControlSock , reply[reply_code_index_find(213)] , 1 + strlen(reply[reply_code_index_find(213)]) , 0 );
 				status2=DeleteFileA(argument);
 				if(status2){
-					send( connectedControlSock , "OK .file successfully Deleted ." , 1 + 31 , 0 );
+					sprintf(str128 , "%s" , "OK .file successfully Deleted .");
+					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 				else
 				{
 					if(GetLastError() == ERROR_FILE_NOT_FOUND){
-						send(connectedControlSock , "ERROR : file not found ."  , 1 + 24 , 0 );
+						sprintf(str128 , "%s" , "ERROR : file not found .");
+						send(connectedControlSock , str128  , 1 + strlen(str128) , 0 );
 					}
 					else if( GetLastError() == ERROR_ACCESS_DENIED)
 					{
-						send(connectedControlSock , "ERROR : file is Read-Only or you don't have permission to delete it." , 1 + 68 , 0);
+						sprintf(str128 , "%s" , "ERROR : file is Read-Only or you don't have permission to delete it.");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else{
-						sprintf(str , "ERROR : an Error Occured with error code <%lu>",GetLastError());
-						send(connectedControlSock , str , strlen(str) , 0 );
+						sprintf(str128 , "ERROR : an Error Occured with error code <%lu>",GetLastError());
+						send(connectedControlSock , str128 , strlen(str128) , 0 );
 					}
 				}
 				
@@ -295,23 +333,27 @@ void service(void)
 				status2 = CreateDirectoryA(argument , NULL) ;
 				if(status2)
 				{
-					send(connectedControlSock , "OK .Directory successfully created." , 1 + 35 , 0);
+					sprintf(str128 , "%s" , "OK .Directory successfully created.");
+					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 				else 
 				{
 					if(GetLastError() == ERROR_ALREADY_EXISTS){
-						send( connectedControlSock , "ERROR :  Directory already exists ." , 1 + 35 , 0 );
+						sprintf(str128 , "%s" , "ERROR :  Directory already exists .");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else if (GetLastError() == ERROR_PATH_NOT_FOUND){
-						send( connectedControlSock , "ERROR :  Directory PATH NOT Found ." , 1 + 35 , 0 );
+						sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else if( GetLastError() == 123 ){
-						send( connectedControlSock , "ERROR :  The filename, directory name, or volume label syntax is incorrect." , 1 + 75 , 0);
+						sprintf(str128 , "%s" , "ERROR :  The filename, directory name, or volume label syntax is incorrect.");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 						
 					}
 					else{
-						sprintf(str , "ERROR : an Error Occured with code <%lu>" , GetLastError());
-						send(connectedControlSock , str , strlen(str) , 0 );
+						sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+						send(connectedControlSock , str128 , strlen(str128) , 0 );
 					}
 				}
 
@@ -322,26 +364,43 @@ void service(void)
 				status2 = RemoveDirectoryA(argument);
 				if (status2)
 				{
-					send(connectedControlSock , "OK .Directory successfully removed." , 1 + 35 , 0);
+					sprintf(str128 , "%s" , "OK .Directory successfully removed.");
+					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 				else
 				{
 					if(GetLastError() == ERROR_DIR_NOT_EMPTY){
-						send(connectedControlSock , "ERROR : Directory is not empty...operation failed." , 1 + 50 , 0 );
+						sprintf(str128 , "%s" , "ERROR : Directory is not empty...operation failed.");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else if(GetLastError() == ERROR_PATH_NOT_FOUND)
 					{
-						send( connectedControlSock , "ERROR :  Directory PATH NOT Found ." , 1 + 35 , 0 );
+						sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else{
-						sprintf(str , "ERROR : an Error Occured with code <%lu>" , GetLastError());
-						send(connectedControlSock , str , strlen(str) , 0 );
+						sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+						send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 				}
 			}
 			else if (strcmp(method, "PWD") == 0)
 			{
-				
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				i = GetCurrentDirectoryA(0 , NULL); // storing length of current(working) directory in i
+				workingDirectory = (char *) malloc((i+1) *sizeof(char));
+				bufferLength = i;
+				i = GetCurrentDirectoryA(bufferLength , workingDirectory);
+				if(i)
+				{
+					send(connectedControlSock , workingDirectory , i + 1 , 0); // maximum path in client for this response at recv is 256
+				}
+				else
+				{
+					sprintf(str128 , "Error : An Error Occured with code <%lu>." , GetLastError());
+					send(connectedControlSock , str128 , 1 + strlen(str128) , 0 ); // because of path response above maximum path in client for this response at recv is 256 too.
+				}
+				free(workingDirectory);
 			}
 			else if (strcmp(method, "CWD") == 0)
 			{
@@ -360,11 +419,13 @@ void service(void)
 				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
 				if(currentUser.isAdmin){
 					historyStr=linkedList_print(&historyList);
-					send(connectedControlSock , historyStr.c_str(),historyStr.size() + 1 , 0);
+					send(connectedControlSock , historyStr,strlen(historyStr) + 1 , 0);
+					free((void *) historyStr);
 				}
 				else
 				{
-					send(connectedControlSock , "you don't have needed permissions !" , 1 + 35 , 0 );
+					sprintf(str128 , "%s" , "you don't have needed permissions !");
+					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 			}
 			else if (strcmp(method, "HELP") == 0) // since here PROjECT NEED
@@ -377,7 +438,8 @@ void service(void)
 				{
 					strstrRes=strstr(helpMessage,argument);
 					if(strstrRes == NULL){
-						send(connectedControlSock , "help for this command not found !" , 1+26 , 0);
+						sprintf(str128 , "%s" , "help for this command not found !");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 					else
 					{
@@ -409,12 +471,12 @@ void service(void)
 				send(connectedControlSock , reply[reply_code_index_find(502)] , 1 + strlen(reply[reply_code_index_find(502)]) , 0);
 			}
 			puts("receiving command ...");
-			status1=recv(connectedControlSock , command , 128 , 0);
+			status1=recv(connectedControlSock , command , 256 , 0);
 		}
 		if(status1 == 0){
-			printf("%s" , "connection closed by client !\n");
+			printf("%s" , "connection closed by client...\n");
 		}else if(status1<0){
-			printf("recv failed !\tError-Code : %d -> connection to this client will close soon...\n", WSAGetLastError());
+			printf("receiving command failed with Error-Code: <%d>\n->-> connection to this client will close soon...\n", WSAGetLastError());
 			closesocket(connectedControlSock);
 		}
 	}while(true);

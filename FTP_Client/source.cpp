@@ -18,9 +18,9 @@ int main(int argc , char **argv)
 void mainMenu()
 {
 	char serverIpAddress[16];
-	char command[128];
-	char method[5];
-	char argument[124];
+	char command[256];
+	char method[17];
+	char argument[240];
 	WSADATA wsadata;
 	unsigned short serverControlPort = 21; // control connection port (L)
 	//unsigned short clientControlPort; //  control connection port (U)
@@ -74,7 +74,9 @@ void mainMenu()
 	int receiveStatus;
 	char reply[128];
 	char helpMessage[2048];
-	char historyReport[102400];
+	char str100k[102400];
+	char str256[256];
+	char str128[128];
 	do
 	{
 		puts("please enter your command :");
@@ -97,7 +99,7 @@ void mainMenu()
 		}
 		sendStatus=send(clientSock,command,strlen(command)+1,0);
 		if(sendStatus == SOCKET_ERROR){
-			printf("can't send command !\tError-Code : %d\n" , WSAGetLastError());
+			printf("can't send command !\tError-Code : <%d>\n" , WSAGetLastError());
 			closesocket(clientSock);
 			if(clientDataSock != clientSock)
 				closesocket(clientDataSock);
@@ -115,11 +117,10 @@ void mainMenu()
 		{
 
 		}
-		else if (strcmp(method, "PASS") == 0)
-		{
-		}
 		else if (strcmp(method, "LIST") == 0)
 		{
+			recv(clientSock , str100k , 102400 , 0);
+			puts(str100k);
 		}
 		else if (strcmp(method, "RETR") == 0)
 		{
@@ -129,21 +130,23 @@ void mainMenu()
 		}
 		else if (strcmp(method, "DELE") == 0)
 		{
-			recv(clientSock , reply , 128 , 0);
-			puts(reply);
+			recv(clientSock , str128 , 128 , 0);
+			puts(str128);
 		}
 		else if (strcmp(method, "MKD") == 0)
 		{
-			recv(clientSock , reply , 128 , 0) ;
-			puts(reply);
-		}
+			recv(clientSock , str128 , 128 , 0) ;
+			puts(str128);
+		}	
 		else if (strcmp(method, "RMD") == 0)
 		{
-			recv(clientSock , reply , 128 , 0);
-			puts(reply);
+			recv(clientSock , str128 , 128 , 0);
+			puts(str128);
 		}
 		else if (strcmp(method, "PWD") == 0)
 		{
+			recv(clientSock , str256 , 256 , 0);
+			puts(str256);
 		}
 		else if (strcmp(method, "CWD") == 0)
 		{
@@ -156,14 +159,14 @@ void mainMenu()
 		}
 		else if (strcmp(method , "RPRT") == 0)// since here PROjECT NEED
 		{
-			recv(clientSock , historyReport  ,  102400/* 100KB MAX */ , 0);
-			puts(historyReport);
+			recv(clientSock , str100k  ,  102400/* 100KB MAX */ , 0);
+			puts(str100k);
 		}
 		else if (strcmp(method, "HELP") == 0)
 		{
 			 receiveStatus=recv(clientSock , helpMessage , 2048 , 0);
 			 if (receiveStatus == SOCKET_ERROR) {
-				printf("can't receive help from server !\tError-Code : %d\n" , WSAGetLastError());
+				printf("can't receive help from server !\tError-Code : <%d>\n" , WSAGetLastError());
 				/*closesocket(clientSock);
 				if(clientDataSock != clientSock)
 				closesocket(clientDataSock);
