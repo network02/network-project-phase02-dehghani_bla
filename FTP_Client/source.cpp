@@ -129,13 +129,18 @@ void mainMenu()
 		}
 		else if (strcmp(method, "DELE") == 0)
 		{
+			recv(clientSock , reply , 128 , 0);
+			puts(reply);
 		}
 		else if (strcmp(method, "MKD") == 0)
 		{
-
+			recv(clientSock , reply , 128 , 0) ;
+			puts(reply);
 		}
 		else if (strcmp(method, "RMD") == 0)
 		{
+			recv(clientSock , reply , 128 , 0);
+			puts(reply);
 		}
 		else if (strcmp(method, "PWD") == 0)
 		{

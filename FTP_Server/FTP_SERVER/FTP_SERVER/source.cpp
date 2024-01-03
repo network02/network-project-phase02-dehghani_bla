@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <string.h>
+#include <windows.h> // for file and directory operations
 
 void service(void);
 
@@ -66,8 +67,8 @@ char reply[39][128]=
 ,"200 Command okay."
 ,"202 Command not implemented, superfluous at this site."
 ,"211 System status, or system help reply."
-,"212 Directory status."
-,"213 File status."
+,"212 Directory status:"
+,"213 File status:"
 ,"214 Help message."
 ,"215 NAME system type."
 ,"220 Service ready for new user."
@@ -214,6 +215,7 @@ void service(void)
 	char helpLine[256];
 	int i;
 	std::string historyStr;
+	char str[128];
 	do
 	{
 		struct userSpecifications currentUser;
@@ -266,15 +268,76 @@ void service(void)
 			}
 			else if (strcmp(method, "DELE") == 0)
 			{
+				send(connectedControlSock , reply[reply_code_index_find(213)] , 1 + strlen(reply[reply_code_index_find(213)]) , 0 );
+				status2=DeleteFileA(argument);
+				if(status2){
+					send( connectedControlSock , "OK .file successfully Deleted ." , 1 + 31 , 0 );
+				}
+				else
+				{
+					if(GetLastError() == ERROR_FILE_NOT_FOUND){
+						send(connectedControlSock , "ERROR : file not found ."  , 1 + 24 , 0 );
+					}
+					else if( GetLastError() == ERROR_ACCESS_DENIED)
+					{
+						send(connectedControlSock , "ERROR : file is Read-Only or you don't have permission to delete it." , 1 + 68 , 0);
+					}
+					else{
+						sprintf(str , "ERROR : an Error Occured with error code <%lu>",GetLastError());
+						send(connectedControlSock , str , strlen(str) , 0 );
+					}
+				}
 				
 			}
 			else if (strcmp(method, "MKD") == 0)
 			{
-				
+				send (connectedControlSock , reply[reply_code_index_find(212)] , 1 + strlen(reply[reply_code_index_find(212)]) , 0);
+				status2 = CreateDirectoryA(argument , NULL) ;
+				if(status2)
+				{
+					send(connectedControlSock , "OK .Directory successfully created." , 1 + 35 , 0);
+				}
+				else 
+				{
+					if(GetLastError() == ERROR_ALREADY_EXISTS){
+						send( connectedControlSock , "ERROR :  Directory already exists ." , 1 + 35 , 0 );
+					}
+					else if (GetLastError() == ERROR_PATH_NOT_FOUND){
+						send( connectedControlSock , "ERROR :  Directory PATH NOT Found ." , 1 + 35 , 0 );
+					}
+					else if( GetLastError() == 123 ){
+						send( connectedControlSock , "ERROR :  The filename, directory name, or volume label syntax is incorrect." , 1 + 75 , 0);
+						
+					}
+					else{
+						sprintf(str , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+						send(connectedControlSock , str , strlen(str) , 0 );
+					}
+				}
+
 			}
 			else if (strcmp(method, "RMD") == 0)
 			{
-				
+				send (connectedControlSock , reply[reply_code_index_find(212)] , 1 + strlen(reply[reply_code_index_find(212)]) , 0);
+				status2 = RemoveDirectoryA(argument);
+				if (status2)
+				{
+					send(connectedControlSock , "OK .Directory successfully removed." , 1 + 35 , 0);
+				}
+				else
+				{
+					if(GetLastError() == ERROR_DIR_NOT_EMPTY){
+						send(connectedControlSock , "ERROR : Directory is not empty...operation failed." , 1 + 50 , 0 );
+					}
+					else if(GetLastError() == ERROR_PATH_NOT_FOUND)
+					{
+						send( connectedControlSock , "ERROR :  Directory PATH NOT Found ." , 1 + 35 , 0 );
+					}
+					else{
+						sprintf(str , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+						send(connectedControlSock , str , strlen(str) , 0 );
+					}
+				}
 			}
 			else if (strcmp(method, "PWD") == 0)
 			{
