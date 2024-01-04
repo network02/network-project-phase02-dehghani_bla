@@ -102,6 +102,23 @@ char reply[39][128]=
 ,"553 Requested action not taken."
 };
 
+
+short replyMap[39]=
+{
+	110   ,  120   , 125   ,  150  ,  200   ,  202   ,  211   ,  212   ,
+	213   ,  214   ,  215  ,  220  ,  221   ,  225   ,  226   ,  227   ,
+	230   ,  250   ,  257  ,  331  ,  332   ,  350   ,  421   ,  425   , 
+	426   ,  450   ,  451  ,  452  ,  500   ,  501   ,  502   ,  503   , 
+	504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553 
+};
+short reply_code_index_find(short code)
+{
+	for( short i=0 ; i<39 ; i++ )
+		if (replyMap[i] == code )
+			return (i);
+	return -1;
+}
+
 char helpMessage[2048]=
 "\t\t\t in the name of GOD\n"
 "server commands and discussions are listed below :\n"
@@ -120,22 +137,6 @@ char helpMessage[2048]=
 "12_ \"RPRT\" : format:(RPRT) discussion:(this command will return history of all commands has send to server for clients wich have permission .\n"
 "13_ \"HELP\" : format:(HELP <command name>) discussion:(if after HELP without any command name , all server commands help will send ; else command's help will send .\n"
 ;
-
-short replyMap[39]=
-{
-	110   ,  120   , 125   ,  150  ,  200   ,  202   ,  211   ,  212   ,
-	213   ,  214   ,  215  ,  220  ,  221   ,  225   ,  226   ,  227   ,
-	230   ,  250   ,  257  ,  331  ,  332   ,  350   ,  421   ,  425   , 
-	426   ,  450   ,  451  ,  452  ,  500   ,  501   ,  502   ,  503   , 
-	504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553 
-};
-short reply_code_index_find(short code)
-{
-	for( short i=0 ; i<39 ; i++ )
-		if (replyMap[i] == code )
-			return (i);
-	return -1;
-}
 
 struct userSpecifications
 {
@@ -208,8 +209,8 @@ void service(void)
 	int clientAddrLen;
 	clientAddrLen= sizeof(clientAddr); // this line is NEEDED (else error cde 10014 will occure in accept ! )
 	char command[256];
-	char method[17];
-	char argument[240];
+	char method[5]; // max 4 char method !
+	char argument[251]; // an space in remove in argument from command !
 	linkedList_init(&historyList);
 	int sscanfRes;
 	char *strstrRes;
@@ -247,7 +248,13 @@ void service(void)
 		while(status1>0)
 		{
 			linkedList_pushback(&historyList , command);
-			sscanfRes=sscanf(command , "%s %s", method , argument);
+			sscanfRes=sscanf(command , "%s %[^\0]", method , argument);
+			if(sscanfRes < 1 ){
+				send(connectedControlSock , reply[reply_code_index_find(500)] , 1 + strlen(reply[reply_code_index_find(500)]) , 0);
+				puts("receiving command ...");
+				status1=recv(connectedControlSock , command , 256 , 0);
+				continue;
+			}
 			if (strcmp(method, "USER") == 0)
 			{
 				send(connectedControlSock , reply[reply_code_index_find(331)] , 1 + strlen(reply[reply_code_index_find(331)]) , 0);
@@ -260,7 +267,10 @@ void service(void)
 			{
 
 				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
-				strcpy(str256 , argument);
+				if(sscanfRes > 1)
+					strcpy(str256 , argument);
+				else 
+					strcpy(str256 , ".");
 				if(str256[strlen(str256)-1] != '\\')
 					strcat(str256 , "\\*");
 				else strcat(str256 , "*");
@@ -275,9 +285,14 @@ void service(void)
 				else
 				{
 					str100k[0] = '\0';
+					if( (sscanfRes > 1) && (argument[strlen(argument) - 1] == '\\') )
+						argument[strlen(argument) -1] = '\0';
 					do
 					{
-						sprintf(str256 , "%s%s\n" , argument , ffd.cFileName);
+						if(sscanfRes >1)
+							sprintf(str256 , "%s\\%s\n" , argument , ffd.cFileName);
+						else
+							sprintf(str256 , "%s\n" , ffd.cFileName);
 						strcat(str100k , str256);
 					}while(FindNextFileA(hFind , &ffd) != 0); // A is important.
 					dwError = GetLastError();
@@ -322,7 +337,7 @@ void service(void)
 					}
 					else{
 						sprintf(str128 , "ERROR : an Error Occured with error code <%lu>",GetLastError());
-						send(connectedControlSock , str128 , strlen(str128) , 0 );
+						send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
 				}
 				
@@ -393,7 +408,7 @@ void service(void)
 				i = GetCurrentDirectoryA(bufferLength , workingDirectory);
 				if(i)
 				{
-					send(connectedControlSock , workingDirectory , i + 1 , 0); // maximum path in client for this response at recv is 256
+					send(connectedControlSock , workingDirectory , i + 1 , 0); // maximum path size in client for this response in recv command is 256
 				}
 				else
 				{
@@ -404,7 +419,17 @@ void service(void)
 			}
 			else if (strcmp(method, "CWD") == 0)
 			{
-				
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				status2 = SetCurrentDirectoryA(argument);
+				if(status2){
+					strcpy(str128 , "OK . working directory successfully changed .");
+					send(connectedControlSock , str128 ,  1 + strlen(str128) , 0);
+				}
+				else
+				{
+					sprintf(str128 , "Error : An Errror Occured with code <%lu>." , GetLastError());
+					send(connectedControlSock , str128 , 1 + strlen(str128) , 0);
+				}
 			}
 			else if (strcmp(method, "CDUP") == 0)
 			{
