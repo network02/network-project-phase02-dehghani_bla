@@ -160,7 +160,10 @@ struct userSpecifications
 						 {"ali" , "123" , 1 , 1 , 1} , { "mahdi" , "123" , 1  , 0 , 0} , {"ahmad" , "123" , 1  , 0 , 1} , {"mahmood" , "123" , 1  , 1 , 0} 
 						 ,{"ali2" , "123" , 0 , 1 , 1} , { "mahdi2" , "123" , 0  , 0 , 0} , {"ahmad2" , "123" , 0  , 0 , 1} , {"mahmood2" , "123" , 0  , 1 , 0}
 					   };
-
+void removeUserAccesses(struct userSpecifications *user)
+{
+	user->reportAccess = user->writeAccess = user->readAccess = 0;
+}
 int main(int argc , char **argv , char **env)
 {
 	service();
@@ -274,15 +277,22 @@ void service(void)
 			if (strcmp(method, "USER") == 0)
 			{
 				send(connectedControlSock , reply[reply_code_index_find(331)] , 1 + strlen(reply[reply_code_index_find(331)]) , 0);
+				if(sscanfRes == 1) // argument = NULL
+					argument[0] = '\0';
 				strcpy(currentUser.userName , argument);
+				removeUserAccesses(&currentUser);
 
 			}
 			else if (strcmp(method, "PASS") == 0)
 			{
+				if(sscanfRes == 1 )
+					argument[0]='\0';
 				strcpy(currentUser.password , argument );
 				if( (currentUser.password[0] == 0)
-					|| (currentUser.userName[0] ==0) )
+					|| (currentUser.userName[0] ==0) ){
 					send(connectedControlSock , reply[reply_code_index_find(332)] , 1 + strlen(reply[reply_code_index_find(332)]) , 0);
+					removeUserAccesses(&currentUser);
+				}
 				else
 				{
 					for(i=0 ; i<NUMBER_OF_REGISTERED_USERS ; i++)
@@ -296,6 +306,7 @@ void service(void)
 					}
 					if( i == NUMBER_OF_REGISTERED_USERS ){
 						send(connectedControlSock , reply[reply_code_index_find(400)] , 1 + strlen(reply[reply_code_index_find(400)]) , 0 );
+						removeUserAccesses(&currentUser);
 					}
 				}
 			}
