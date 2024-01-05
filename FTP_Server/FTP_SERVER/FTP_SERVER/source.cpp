@@ -8,10 +8,15 @@
 
 void service(void);
 
+#define METHOD_SIZE 5 //  // max 4 char method ! + '\0'
+#define COMMAND_SIZE 256
+#define ARGUMENT_SIZE ( COMMAND_SIZE - 1 - (METHOD_SIZE - 1 ) - 1 + 1 )  // an space is removed in argument from command ! (-1 dar akhare ebarat)
+
+
 
 struct node{
 	struct node *next;
-	char command[256];
+	char command[COMMAND_SIZE];
 };
 struct linkedList{
 	struct node *head;
@@ -59,7 +64,9 @@ void linkedList_delete( struct linkedList *ll){
 	ll->size=0;
 }
 
-char reply[39][128]=
+#define NUMBER_OF_REPLIES 40
+
+char reply[NUMBER_OF_REPLIES][128]=
 { 
  "110 Restart marker reply."
 ,"120 Service ready in nnn minutes."
@@ -83,6 +90,7 @@ char reply[39][128]=
 ,"331 User name okay, need password."
 ,"332 Need account for login."
 ,"350 Requested file action pending further information."
+,"400 username\\password is Incorrect ."
 ,"421 Service not available, closing control connection."
 ,"425 Can’t open data connection."
 ,"426 Connection closed; transfer aborted."
@@ -103,23 +111,24 @@ char reply[39][128]=
 };
 
 
-short replyMap[39]=
+short replyMap[NUMBER_OF_REPLIES]=
 {
 	110   ,  120   , 125   ,  150  ,  200   ,  202   ,  211   ,  212   ,
 	213   ,  214   ,  215  ,  220  ,  221   ,  225   ,  226   ,  227   ,
-	230   ,  250   ,  257  ,  331  ,  332   ,  350   ,  421   ,  425   , 
-	426   ,  450   ,  451  ,  452  ,  500   ,  501   ,  502   ,  503   , 
-	504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553 
+	230   ,  250   ,  257  ,  331  ,  332   ,  350   ,  400   ,  421   ,
+	425   ,  426   ,  450   ,  451  ,  452  ,  500   ,  501   ,  502   ,
+	503   ,  504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553 
 };
 short reply_code_index_find(short code)
 {
-	for( short i=0 ; i<39 ; i++ )
+	for( short i=0 ; i<NUMBER_OF_REPLIES ; i++ )
 		if (replyMap[i] == code )
 			return (i);
 	return -1;
 }
 
-char helpMessage[2048]=
+#define SIZE_OF_HELP_MESSAGE 2048
+char helpMessage[SIZE_OF_HELP_MESSAGE]=
 "\t\t\t in the name of GOD\n"
 "server commands and discussions are listed below :\n"
 "1_ \"USER\" : format:(USER <username>) discussion:(this command will send username to server for authentication of user)\n"
@@ -138,14 +147,19 @@ char helpMessage[2048]=
 "13_ \"HELP\" : format:(HELP <command name>) discussion:(if after HELP without any command name , all server commands help will send ; else command's help will send .\n"
 ;
 
+#define NUMBER_OF_REGISTERED_USERS 8
 struct userSpecifications
 {
-	char userName[124];
-	char password[124];
-	char isAdmin;
-	char hasAccessPrivateFiles;
-	;//etc
-} registeredUsers[4] = { {"ali" , "123" , 1 , 1} , { "mahdi" , "123" , 0 , 0} , {"ahmad" , "123" , 0 , 1} , {"mahmood" , "123" , 1 , 0} };
+	char userName[ARGUMENT_SIZE];
+	char password[ARGUMENT_SIZE];
+	char reportAccess;
+	char readAccess;
+	char writeAccess;
+	;//Others
+} registeredUsers[NUMBER_OF_REGISTERED_USERS] = { 
+						 {"ali" , "123" , 1 , 1 , 1} , { "mahdi" , "123" , 1  , 0 , 0} , {"ahmad" , "123" , 1  , 0 , 1} , {"mahmood" , "123" , 1  , 1 , 0} 
+						 ,{"ali2" , "123" , 0 , 1 , 1} , { "mahdi2" , "123" , 0  , 0 , 0} , {"ahmad2" , "123" , 0  , 0 , 1} , {"mahmood2" , "123" , 0  , 1 , 0}
+					   };
 
 int main(int argc , char **argv , char **env)
 {
@@ -153,6 +167,7 @@ int main(int argc , char **argv , char **env)
 	system("pause");
 	return (0);
 }
+
 
 void service(void)
 {
@@ -208,9 +223,9 @@ void service(void)
 	struct sockaddr_in clientAddr;
 	int clientAddrLen;
 	clientAddrLen= sizeof(clientAddr); // this line is NEEDED (else error cde 10014 will occure in accept ! )
-	char command[256];
-	char method[5]; // max 4 char method !
-	char argument[251]; // an space in remove in argument from command !
+	char command[COMMAND_SIZE];
+	char method[METHOD_SIZE];
+	char argument[ARGUMENT_SIZE];
 	linkedList_init(&historyList);
 	int sscanfRes;
 	char *strstrRes;
@@ -227,8 +242,9 @@ void service(void)
 	do
 	{
 		struct userSpecifications currentUser;
-		currentUser.isAdmin = 1;
-		currentUser.hasAccessPrivateFiles = 0;
+		currentUser.reportAccess = 0;
+		currentUser.readAccess = 0;
+		currentUser.writeAccess = 0;
 		currentUser.userName[0]=0;
 		currentUser.password[0]=0;
 		connectedControlSock=accept(serverSock , (struct sockaddr *) &clientAddr , &clientAddrLen);
@@ -258,10 +274,30 @@ void service(void)
 			if (strcmp(method, "USER") == 0)
 			{
 				send(connectedControlSock , reply[reply_code_index_find(331)] , 1 + strlen(reply[reply_code_index_find(331)]) , 0);
+				strcpy(currentUser.userName , argument);
+
 			}
 			else if (strcmp(method, "PASS") == 0)
 			{
-				
+				strcpy(currentUser.password , argument );
+				if( (currentUser.password[0] == 0)
+					|| (currentUser.userName[0] ==0) )
+					send(connectedControlSock , reply[reply_code_index_find(332)] , 1 + strlen(reply[reply_code_index_find(332)]) , 0);
+				else
+				{
+					for(i=0 ; i<NUMBER_OF_REGISTERED_USERS ; i++)
+					{
+						if( (strcmp(currentUser.userName , registeredUsers[i].userName ) == 0)
+							&& (strcmp(currentUser.password , registeredUsers[i].password ) == 0) ) {
+							currentUser=registeredUsers[i];
+							send(connectedControlSock , reply[reply_code_index_find(230)] , 1 + strlen(reply[reply_code_index_find(230)]) , 0);
+							break;
+						}
+					}
+					if( i == NUMBER_OF_REGISTERED_USERS ){
+						send(connectedControlSock , reply[reply_code_index_find(400)] , 1 + strlen(reply[reply_code_index_find(400)]) , 0 );
+					}
+				}
 			}
 			else if (strcmp(method, "LIST") == 0)
 			{
@@ -302,7 +338,7 @@ void service(void)
 					}
 					else
 					{
-						send(connectedControlSock , str100k , strlen(str100k) , 0);
+						send(connectedControlSock , str100k , 1 + strlen(str100k) , 0);
 					}
 					FindClose(hFind);
 				}
@@ -433,7 +469,18 @@ void service(void)
 			}
 			else if (strcmp(method, "CDUP") == 0)
 			{
-				
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				status2 = SetCurrentDirectoryA("..");
+				if(status2){
+					strcpy(str128 , "OK . CDUP succeeded .");
+					send(connectedControlSock , str128 , 1 + strlen(str128) , 0);
+				}
+				else
+				{
+					sprintf(str128 , "Error : An Errror Occured with code <%lu>." , GetLastError() );
+					send(connectedControlSock , str128 , 1 + strlen(str128) , 0);
+				}
+
 			}
 			else if (strcmp(method, "QUIT") == 0)
 			{
@@ -442,7 +489,7 @@ void service(void)
 			else if (strcmp(method, "RPRT") == 0) 
 			{
 				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
-				if(currentUser.isAdmin){
+				if(currentUser.reportAccess){
 					historyStr=linkedList_print(&historyList);
 					send(connectedControlSock , historyStr,strlen(historyStr) + 1 , 0);
 					free((void *) historyStr);

@@ -163,6 +163,8 @@ void mainMenu()
 		}
 		else if (strcmp(method, "CDUP") == 0)
 		{
+			recv(clientSock , str128 , 128 , 0);
+			puts(str128);
 		}
 		else if (strcmp(method, "QUIT") == 0)
 		{
