@@ -530,7 +530,7 @@ void service(void)
 					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 			}
-			else if (strcmp(method, "HELP") == 0) // since here PROjECT NEED
+			else if (strcmp(method, "HELP") == 0)
 			{
 				send (connectedControlSock , reply[reply_code_index_find(214)] , 1 + strlen(reply[reply_code_index_find(214)]) , 0);
 				if(sscanfRes == 1){
@@ -558,15 +558,18 @@ void service(void)
 				}
 				
 			}
+			else if (strcmp(method, "NOOP") == 0)
+			{
+				send(connectedControlSock, reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]),0);
+			}
+
+			// since here will implement
+
 			else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port (format of port command: PORT h1,h2,h3,h4,p1,p2)
 			{
 			}
 			else if (strcmp(method, "PASV") == 0) // 
 			{	
-			}
-			else if (strcmp(method, "NOOP") == 0)
-			{
-				send(connectedControlSock, reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]),0);
 			}
 			else
 			{

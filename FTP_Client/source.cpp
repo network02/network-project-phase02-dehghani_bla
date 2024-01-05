@@ -169,11 +169,6 @@ void mainMenu()
 		else if (strcmp(method, "QUIT") == 0)
 		{
 		}
-		else if (strcmp(method , "RPRT") == 0)// since here PROjECT NEED
-		{
-			recv(clientSock , str100k  ,  102400/* 100KB MAX */ , 0);
-			puts(str100k);
-		}
 		else if (strcmp(method, "HELP") == 0)
 		{
 			 receiveStatus=recv(clientSock , helpMessage , 2048 , 0);
@@ -191,6 +186,17 @@ void mainMenu()
 			 }
 
 		}
+		else if (strcmp(method , "RPRT") == 0)
+		{
+			recv(clientSock , str100k  ,  102400/* 100KB MAX */ , 0);
+			puts(str100k);
+		}
+		else if (strcmp(method, "NOOP") == 0)
+		{
+			// NOOP
+		}
+		// since here will implemented
+
 		else if (strcmp(method, "PORT") == 0) // sets client data socket(welcomming socket) port (format of port command: PORT h1,h2,h3,h4,p1,p2)
 		{
 			//clientDataSock=socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
@@ -204,13 +210,9 @@ void mainMenu()
 		else if (strcmp(method, "PASV") == 0)
 		{
 		}
-		else if (strcmp(method, "NOOP") == 0)
-		{
-			// NOOP
-		}
 		else
 		{
-			// nothing :|
+			// nothing to do... :|
 
 		}
 
