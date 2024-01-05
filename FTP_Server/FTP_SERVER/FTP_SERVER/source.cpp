@@ -312,7 +312,6 @@ void service(void)
 			}
 			else if (strcmp(method, "LIST") == 0)
 			{
-
 				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
 				if(sscanfRes > 1)
 					strcpy(str256 , argument);
@@ -366,25 +365,32 @@ void service(void)
 			else if (strcmp(method, "DELE") == 0)
 			{
 				send(connectedControlSock , reply[reply_code_index_find(213)] , 1 + strlen(reply[reply_code_index_find(213)]) , 0 );
-				status2=DeleteFileA(argument);
-				if(status2){
-					sprintf(str128 , "%s" , "OK .file successfully Deleted .");
+				if(currentUser.writeAccess == 0){
+					sprintf(str128 , "%s" , "you don't have permission to write(delete) files.");
 					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 				else
 				{
-					if(GetLastError() == ERROR_FILE_NOT_FOUND){
-						sprintf(str128 , "%s" , "ERROR : file not found .");
-						send(connectedControlSock , str128  , 1 + strlen(str128) , 0 );
-					}
-					else if( GetLastError() == ERROR_ACCESS_DENIED)
-					{
-						sprintf(str128 , "%s" , "ERROR : file is Read-Only or you don't have permission to delete it.");
+					status2=DeleteFileA(argument);
+					if(status2){
+						sprintf(str128 , "%s" , "OK .file successfully Deleted .");
 						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
-					else{
-						sprintf(str128 , "ERROR : an Error Occured with error code <%lu>",GetLastError());
-						send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+					else
+					{
+						if(GetLastError() == ERROR_FILE_NOT_FOUND){
+							sprintf(str128 , "%s" , "ERROR : file not found .");
+							send(connectedControlSock , str128  , 1 + strlen(str128) , 0 );
+						}
+						else if( GetLastError() == ERROR_ACCESS_DENIED)
+						{
+							sprintf(str128 , "%s" , "ERROR : file is Read-Only or you don't have permission to delete it.");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
+						else{
+							sprintf(str128 , "ERROR : an Error Occured with error code <%lu>",GetLastError());
+							send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
 					}
 				}
 				
@@ -392,57 +398,70 @@ void service(void)
 			else if (strcmp(method, "MKD") == 0)
 			{
 				send (connectedControlSock , reply[reply_code_index_find(212)] , 1 + strlen(reply[reply_code_index_find(212)]) , 0);
-				status2 = CreateDirectoryA(argument , NULL) ;
-				if(status2)
-				{
-					sprintf(str128 , "%s" , "OK .Directory successfully created.");
-					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
-				}
-				else 
-				{
-					if(GetLastError() == ERROR_ALREADY_EXISTS){
-						sprintf(str128 , "%s" , "ERROR :  Directory already exists .");
-						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
-					}
-					else if (GetLastError() == ERROR_PATH_NOT_FOUND){
-						sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
-						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
-					}
-					else if( GetLastError() == 123 ){
-						sprintf(str128 , "%s" , "ERROR :  The filename, directory name, or volume label syntax is incorrect.");
-						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
-						
-					}
-					else{
-						sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
-						send(connectedControlSock , str128 , strlen(str128) , 0 );
-					}
-				}
-
-			}
-			else if (strcmp(method, "RMD") == 0)
-			{
-				send (connectedControlSock , reply[reply_code_index_find(212)] , 1 + strlen(reply[reply_code_index_find(212)]) , 0);
-				status2 = RemoveDirectoryA(argument);
-				if (status2)
-				{
-					sprintf(str128 , "%s" , "OK .Directory successfully removed.");
+				if(currentUser.writeAccess == 0){
+					sprintf(str128 , "%s" , "you don't have permission to write(make) directories.");
 					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 				}
 				else
 				{
-					if(GetLastError() == ERROR_DIR_NOT_EMPTY){
-						sprintf(str128 , "%s" , "ERROR : Directory is not empty...operation failed.");
-						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
-					}
-					else if(GetLastError() == ERROR_PATH_NOT_FOUND)
+					status2 = CreateDirectoryA(argument , NULL) ;
+					if(status2)
 					{
-						sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
+						sprintf(str128 , "%s" , "OK .Directory successfully created.");
 						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
 					}
-					else{
-						sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
-						send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+					else 
+					{
+						if(GetLastError() == ERROR_ALREADY_EXISTS){
+							sprintf(str128 , "%s" , "ERROR :  Directory already exists .");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
+						else if (GetLastError() == ERROR_PATH_NOT_FOUND){
+							sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
+						else if( GetLastError() == 123 ){
+							sprintf(str128 , "%s" , "ERROR :  The filename, directory name, or volume label syntax is incorrect.");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+							
+						}
+						else{
+							sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+							send(connectedControlSock , str128 , strlen(str128) , 0 );
+						}
+					}
+				}
+			}
+			else if (strcmp(method, "RMD") == 0)
+			{
+				send (connectedControlSock , reply[reply_code_index_find(212)] , 1 + strlen(reply[reply_code_index_find(212)]) , 0);
+				if(currentUser.writeAccess == 0){
+					sprintf(str128 , "%s" , "you don't have permission to write(remove) directories.");
+					send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+				}
+				else
+				{
+					status2 = RemoveDirectoryA(argument);
+					if (status2)
+					{
+						sprintf(str128 , "%s" , "OK .Directory successfully removed.");
+						send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+					}
+					else
+					{
+						if(GetLastError() == ERROR_DIR_NOT_EMPTY){
+							sprintf(str128 , "%s" , "ERROR : Directory is not empty...operation failed.");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
+						else if(GetLastError() == ERROR_PATH_NOT_FOUND)
+						{
+							sprintf(str128 , "%s" , "ERROR :  Directory PATH NOT Found .");
+							send( connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
+						else{
+							sprintf(str128 , "ERROR : an Error Occured with code <%lu>" , GetLastError());
+							send(connectedControlSock , str128 , 1 + strlen(str128) , 0 );
+						}
 					}
 				}
 			}
