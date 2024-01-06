@@ -11,7 +11,7 @@ void service(void);
 #define METHOD_SIZE 5 //  // max 4 char method ! + '\0'
 #define COMMAND_SIZE 256
 #define ARGUMENT_SIZE ( COMMAND_SIZE - 1 - (METHOD_SIZE - 1 ) - 1 + 1 )  // an space is removed in argument from command ! (-1 dar akhare ebarat)
-
+#define FILE_BUF_SIZE 1024
 
 
 struct node{
@@ -71,7 +71,7 @@ char reply[NUMBER_OF_REPLIES][128]=
  "110 Restart marker reply."
 ,"120 Service ready in nnn minutes."
 ,"125 Data connection already open; transfer starting."
-,"150 File status okay; about to open data connection. };"
+,"150 File status okay; openning data connection ..."
 ,"200 Command okay."
 ,"202 Command not implemented, superfluous at this site."
 ,"211 System status, or system help reply."
@@ -185,8 +185,8 @@ void service(void)
 		system("pause");
 		exit(EXIT_FAILURE);
 	}
-	int serverSock = socket(AF_INET , SOCK_STREAM, IPPROTO_IP);
-	int serverDataSock = socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+	SOCKET serverSock = socket(AF_INET , SOCK_STREAM, IPPROTO_IP);
+	SOCKET serverDataSock;
 	if( (serverSock == INVALID_SOCKET) || (serverDataSock == INVALID_SOCKET) ){
 		puts("can't create server needed socket !");
 		if(serverSock != INVALID_SOCKET)
@@ -197,21 +197,15 @@ void service(void)
 		system("pause");
 		exit(EXIT_FAILURE);
 	}
-	sockaddr_in serverAddr;
-	sockaddr_in serverDataAddr;
+	struct sockaddr_in serverAddr;
 	serverAddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
-	serverDataAddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
 	serverAddr.sin_family = AF_INET;
-	serverDataAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(serverControlPort);
-	serverDataAddr.sin_port = htons(serverDataPort);
 	int status1,status2;
 	status1=bind(serverSock , (struct sockaddr *) &serverAddr , sizeof(serverAddr));
-	status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
-	if( (status1 == SOCKET_ERROR) || (status2 == SOCKET_ERROR) ){
+	if( (status1 == SOCKET_ERROR) ){
 		puts("can't bind server socket !");
 		closesocket(serverSock);
-		closesocket(serverDataSock);
 		WSACleanup();
 		system("pause");
 		exit(EXIT_FAILURE);
@@ -242,6 +236,12 @@ void service(void)
 	DWORD bufferLength;
 	char *workingDirectory;
 	char str128[128];
+	FILE *fp;
+	char fileBuf[FILE_BUF_SIZE];
+	struct sockaddr_in clientDataAddr;
+	clientDataAddr.sin_family=AF_INET;
+	unsigned long clientDataIp;
+	struct sockaddr_in serverDataAddr;
 	do
 	{
 		struct userSpecifications currentUser;
@@ -251,12 +251,13 @@ void service(void)
 		currentUser.userName[0]=0;
 		currentUser.password[0]=0;
 		connectedControlSock=accept(serverSock , (struct sockaddr *) &clientAddr , &clientAddrLen);
+		clientDataPort = clientControlPort = ntohs(clientAddr.sin_port);
+		clientDataIp=ntohl(clientAddr.sin_addr.S_un.S_addr);
 		puts("a client connected to server .");
 		if(connectedControlSock == INVALID_SOCKET)
 		{
 			printf("accept failed: %d\n", WSAGetLastError());
 			closesocket(serverSock);
-			closesocket(serverDataSock);
 			WSACleanup();
 			linkedList_delete(&historyList);
 			system("pause");
@@ -357,6 +358,66 @@ void service(void)
 			else if (strcmp(method, "RETR") == 0)
 			{
 				
+				if(sscanfRes == 1  ){
+					send(connectedControlSock , reply[reply_code_index_find(450)] , 1 + strlen( reply[reply_code_index_find(450)] ) , 0);
+				}
+				else if(currentUser.readAccess == 0 )
+				{
+					send(connectedControlSock , reply[reply_code_index_find(530)] , 1 + strlen( reply[reply_code_index_find(530)] ) , 0);
+				}
+				else
+				{
+					fp=fopen(argument , "rb");
+					if(fp == NULL)
+					{
+						send(connectedControlSock , reply[reply_code_index_find(450)] , 1 + strlen( reply[reply_code_index_find(450)] ) , 0);
+					}
+					else
+					{
+						serverDataSock = socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+						serverDataAddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
+						serverDataAddr.sin_family = AF_INET;
+						serverDataAddr.sin_port = htons(serverDataPort);
+						status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
+						if(status2 == SOCKET_ERROR)
+						{
+							serverDataAddr.sin_port =htons(0); // test unassigned ports 
+							//(11_ How does ftp assigns sockets to a client server connection in phase 1 project resources)
+													//+ read MSDN for bind
+							status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
+						}
+						if(status2 == SOCKET_ERROR)
+						{
+							send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+							closesocket(serverDataSock);
+						}
+						else
+						{
+							clientDataAddr.sin_addr.S_un.S_addr = htonl(clientDataIp);
+							clientDataAddr.sin_port = htons(clientDataPort);
+							int status2 = connect(serverDataSock , (struct sockaddr *)&clientDataAddr , sizeof(clientDataAddr));
+							if(status2 == SOCKET_ERROR)
+							{
+								send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+								closesocket(serverDataSock);
+							}
+							else
+							{
+								send(connectedControlSock , reply[reply_code_index_find(150)] , 1 + strlen( reply[reply_code_index_find(150)] ) , 0);
+								i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+								while( i == FILE_BUF_SIZE )
+								{
+									send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
+									i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+								}
+								fileBuf[i]=EOF;
+								send(serverDataSock , fileBuf , i+1 , 0);
+								send(connectedControlSock , reply[reply_code_index_find(226)] , 1 + strlen(reply[reply_code_index_find(226)]) , 0);
+								closesocket(serverDataSock);
+							}
+						}
+					}
+				}
 			}
 			else if (strcmp(method, "STOR") == 0)
 			{
