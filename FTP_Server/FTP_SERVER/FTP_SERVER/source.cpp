@@ -64,7 +64,7 @@ void linkedList_delete( struct linkedList *ll){
 	ll->size=0;
 }
 
-#define NUMBER_OF_REPLIES 40
+#define NUMBER_OF_REPLIES 41
 
 char reply[NUMBER_OF_REPLIES][128]=
 { 
@@ -108,6 +108,7 @@ char reply[NUMBER_OF_REPLIES][128]=
 ,"551 Requested action aborted: page type unknown."
 ,"552 Requested file action aborted."
 ,"553 Requested action not taken."
+,"554 you don't have read access in this server.operation failed."
 };
 
 
@@ -117,7 +118,8 @@ short replyMap[NUMBER_OF_REPLIES]=
 	213   ,  214   ,  215  ,  220  ,  221   ,  225   ,  226   ,  227   ,
 	230   ,  250   ,  257  ,  331  ,  332   ,  350   ,  400   ,  421   ,
 	425   ,  426   ,  450   ,  451  ,  452  ,  500   ,  501   ,  502   ,
-	503   ,  504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553 
+	503   ,  504   ,  530   ,  532  ,  550  ,  551   ,  552   ,  553   ,
+	554
 };
 short reply_code_index_find(short code)
 {
@@ -187,12 +189,8 @@ void service(void)
 	}
 	SOCKET serverSock = socket(AF_INET , SOCK_STREAM, IPPROTO_IP);
 	SOCKET serverDataSock;
-	if( (serverSock == INVALID_SOCKET) || (serverDataSock == INVALID_SOCKET) ){
+	if( (serverSock == INVALID_SOCKET) ){
 		puts("can't create server needed socket !");
-		if(serverSock != INVALID_SOCKET)
-			closesocket(serverSock);
-		else if(serverDataSock != INVALID_SOCKET)
-			closesocket(serverDataSock);
 		WSACleanup();
 		system("pause");
 		exit(EXIT_FAILURE);
@@ -363,7 +361,7 @@ void service(void)
 				}
 				else if(currentUser.readAccess == 0 )
 				{
-					send(connectedControlSock , reply[reply_code_index_find(530)] , 1 + strlen( reply[reply_code_index_find(530)] ) , 0);
+					send(connectedControlSock , reply[reply_code_index_find(554)] , 1 + strlen( reply[reply_code_index_find(554)] ) , 0);
 				}
 				else
 				{
@@ -389,31 +387,47 @@ void service(void)
 						if(status2 == SOCKET_ERROR)
 						{
 							send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+							sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+							puts(str128);
 							closesocket(serverDataSock);
 						}
 						else
 						{
-							clientDataAddr.sin_addr.S_un.S_addr = htonl(clientDataIp);
-							clientDataAddr.sin_port = htons(clientDataPort);
-							int status2 = connect(serverDataSock , (struct sockaddr *)&clientDataAddr , sizeof(clientDataAddr));
-							if(status2 == SOCKET_ERROR)
+							status2 = recv(connectedControlSock , str128 , 128 , 0);
+							if(status2 ==SOCKET_ERROR)
 							{
-								send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+								// niazi be ersale payam baraye client nist zira khodash az tarighe send status mifahmad.
+								sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+								puts(str128);
 								closesocket(serverDataSock);
 							}
 							else
 							{
-								send(connectedControlSock , reply[reply_code_index_find(150)] , 1 + strlen( reply[reply_code_index_find(150)] ) , 0);
-								i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
-								while( i == FILE_BUF_SIZE )
+								sscanf(str128 + 5 ,"%hu" , &clientDataPort);
+								clientDataAddr.sin_addr.S_un.S_addr = htonl(clientDataIp);
+								clientDataAddr.sin_port = htons(clientDataPort);
+								status2 = connect(serverDataSock , (struct sockaddr *)&clientDataAddr , sizeof(clientDataAddr));
+								if(status2 == SOCKET_ERROR)
 								{
-									send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
-									i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+									send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+									sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+									puts(str128);
+									closesocket(serverDataSock);
 								}
-								fileBuf[i]=EOF;
-								send(serverDataSock , fileBuf , i+1 , 0);
-								send(connectedControlSock , reply[reply_code_index_find(226)] , 1 + strlen(reply[reply_code_index_find(226)]) , 0);
-								closesocket(serverDataSock);
+								else
+								{
+									send(connectedControlSock , reply[reply_code_index_find(150)] , 1 + strlen( reply[reply_code_index_find(150)] ) , 0);
+									i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+									while( i == FILE_BUF_SIZE )
+									{
+										send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
+										i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+									}
+									fileBuf[i]=EOF;
+									send(serverDataSock , fileBuf , i+1 , 0);
+									send(connectedControlSock , reply[reply_code_index_find(226)] , 1 + strlen(reply[reply_code_index_find(226)]) , 0);
+									closesocket(serverDataSock);
+								}
 							}
 						}
 					}
