@@ -92,7 +92,7 @@ char reply[NUMBER_OF_REPLIES][128]=
 ,"350 Requested file action pending further information."
 ,"400 username\\password is Incorrect ."
 ,"421 Service not available, closing control connection."
-,"425 Can’t open data connection."
+,"425 Can't open data connection."
 ,"426 Connection closed; transfer aborted."
 ,"450 Requested file action not taken."
 ,"451 Requested action aborted: local error in processing."
@@ -240,9 +240,11 @@ void service(void)
 	clientDataAddr.sin_family=AF_INET;
 	unsigned long clientDataIp;
 	struct sockaddr_in serverDataAddr;
+	int error_detected;
 	do
 	{
 		struct userSpecifications currentUser;
+		serverDataSock=INVALID_SOCKET;
 		currentUser.reportAccess = 0;
 		currentUser.readAccess = 0;
 		currentUser.writeAccess = 0;
@@ -355,8 +357,64 @@ void service(void)
 			}
 			else if (strcmp(method, "RETR") == 0)
 			{
-				
-				if(sscanfRes == 1  ){
+				send(connectedControlSock , reply[reply_code_index_find(200)] , 1 + strlen(reply[reply_code_index_find(200)]) , 0);
+				error_detected = 0;
+				if(serverDataSock == INVALID_SOCKET)
+				{
+					serverDataSock = socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
+					serverDataAddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
+					serverDataAddr.sin_family = AF_INET;
+					serverDataAddr.sin_port = htons(serverDataPort);
+					status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
+					if(status2 == SOCKET_ERROR)
+					{
+						serverDataAddr.sin_port =htons(0); // test unassigned ports 
+						//(11_ How does ftp assigns sockets to a client server connection in phase 1 project resources)
+									//+ read MSDN for bind
+						status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
+					}
+					if(status2 == SOCKET_ERROR)
+					{
+						error_detected =1;
+						send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+						sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+						puts(str128);
+						closesocket(serverDataSock);
+						serverDataSock= INVALID_SOCKET;
+					}
+					else
+					{
+						status2 = recv(connectedControlSock , str128 , 128 , 0);
+						if(status2 ==SOCKET_ERROR)
+						{
+							error_detected = 1;
+							// niazi be ersale payam baraye client nist zira khodash az tarighe send status mifahmad.
+							sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+							puts(str128);
+						}
+						else
+						{
+							sscanf(str128 + 5 ,"%hu" , &clientDataPort);
+							clientDataAddr.sin_addr.S_un.S_addr = htonl(clientDataIp);
+							clientDataAddr.sin_port = htons(clientDataPort);
+							status2 = connect(serverDataSock , (struct sockaddr *)&clientDataAddr , sizeof(clientDataAddr));
+							if(status2 == SOCKET_ERROR)
+							{
+								error_detected = 1;
+								send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
+								sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
+								puts(str128);
+								closesocket(serverDataSock);
+								serverDataSock =INVALID_SOCKET;
+							}
+						}
+					}
+				}
+				if(error_detected ==1)
+				{
+					// do nothing
+				}
+				else if(sscanfRes == 1  ){
 					send(connectedControlSock , reply[reply_code_index_find(450)] , 1 + strlen( reply[reply_code_index_find(450)] ) , 0);
 				}
 				else if(currentUser.readAccess == 0 )
@@ -372,64 +430,16 @@ void service(void)
 					}
 					else
 					{
-						serverDataSock = socket(AF_INET , SOCK_STREAM , IPPROTO_IP);
-						serverDataAddr.sin_addr.S_un.S_addr=htonl(INADDR_ANY);
-						serverDataAddr.sin_family = AF_INET;
-						serverDataAddr.sin_port = htons(serverDataPort);
-						status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
-						if(status2 == SOCKET_ERROR)
+						send(connectedControlSock , reply[reply_code_index_find(150)] , 1 + strlen( reply[reply_code_index_find(150)] ) , 0);
+						i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
+						while( i == FILE_BUF_SIZE )
 						{
-							serverDataAddr.sin_port =htons(0); // test unassigned ports 
-							//(11_ How does ftp assigns sockets to a client server connection in phase 1 project resources)
-													//+ read MSDN for bind
-							status2=bind(serverDataSock , (struct sockaddr *) &serverDataAddr , sizeof(serverDataAddr));
+							send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
+							i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
 						}
-						if(status2 == SOCKET_ERROR)
-						{
-							send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
-							sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
-							puts(str128);
-							closesocket(serverDataSock);
-						}
-						else
-						{
-							status2 = recv(connectedControlSock , str128 , 128 , 0);
-							if(status2 ==SOCKET_ERROR)
-							{
-								// niazi be ersale payam baraye client nist zira khodash az tarighe send status mifahmad.
-								sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
-								puts(str128);
-								closesocket(serverDataSock);
-							}
-							else
-							{
-								sscanf(str128 + 5 ,"%hu" , &clientDataPort);
-								clientDataAddr.sin_addr.S_un.S_addr = htonl(clientDataIp);
-								clientDataAddr.sin_port = htons(clientDataPort);
-								status2 = connect(serverDataSock , (struct sockaddr *)&clientDataAddr , sizeof(clientDataAddr));
-								if(status2 == SOCKET_ERROR)
-								{
-									send(connectedControlSock , reply[reply_code_index_find(425)] , 1 + strlen(reply[reply_code_index_find(425)]) , 0 );
-									sprintf(str128 , "ERROR : An Error Occured with code <%d>" , WSAGetLastError());
-									puts(str128);
-									closesocket(serverDataSock);
-								}
-								else
-								{
-									send(connectedControlSock , reply[reply_code_index_find(150)] , 1 + strlen( reply[reply_code_index_find(150)] ) , 0);
-									i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
-									while( i == FILE_BUF_SIZE )
-									{
-										send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
-										i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
-									}
-									fileBuf[i]=EOF;
-									send(serverDataSock , fileBuf , i+1 , 0);
-									send(connectedControlSock , reply[reply_code_index_find(226)] , 1 + strlen(reply[reply_code_index_find(226)]) , 0);
-									closesocket(serverDataSock);
-								}
-							}
-						}
+						fileBuf[i]=EOF;
+						send(serverDataSock , fileBuf , i+1 , 0);
+						send(connectedControlSock , reply[reply_code_index_find(250)] , 1 + strlen(reply[reply_code_index_find(250)]) , 0);
 					}
 				}
 			}
@@ -653,11 +663,13 @@ void service(void)
 			puts("receiving command ...");
 			status1=recv(connectedControlSock , command , 256 , 0);
 		}
+		if(serverDataSock != INVALID_SOCKET)
+				closesocket(serverDataSock);
 		if(status1 == 0){
 			printf("%s" , "connection closed by client...\n");
 		}else if(status1<0){
 			printf("receiving command failed with Error-Code: <%d>\n->-> connection to this client will close soon...\n", WSAGetLastError());
-			closesocket(connectedControlSock);
 		}
+		closesocket(connectedControlSock);
 	}while(true);
 }

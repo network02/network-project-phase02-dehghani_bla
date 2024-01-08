@@ -91,7 +91,7 @@ void mainMenu()
 	char fileBuf[FILE_BUF_SIZE];
 	FILE *fp;
 	char str512[512];
-	SOCKET connectedServerDataSock;
+	SOCKET connectedServerDataSock = INVALID_SOCKET;
 	struct sockaddr_in clientDataAddr;
 	int clientDataAddrLen= sizeof(struct sockaddr_in);
 	int bindStatus;
@@ -127,6 +127,8 @@ void mainMenu()
 		if(sendStatus == SOCKET_ERROR){
 			printf("can't send command !\tError-Code : <%d>\n" , WSAGetLastError());
 			closesocket(clientSock);
+			if(connectedServerDataSock == INVALID_SOCKET)
+				closesocket(connectedServerDataSock);
 			WSACleanup();
 			system("pause");
 			exit(EXIT_FAILURE);
@@ -148,25 +150,7 @@ void mainMenu()
 		}
 		else if (strcmp(method, "RETR") == 0)
 		{
-			if(strstr(reply , "150") != reply ) // fail to return file or open data connection ...
-			{
-				if( strstr(reply , "554") == reply) // not logged in.
-				{
-					puts("please login or login with another account to access files.");
-				}
-				else if( strstr(reply , "450") == reply)
-				{
-					puts("please after RETR enter the correct Path of the file to get it.");
-				}
-				else
-				{
-					closesocket(clientSock);
-					WSACleanup();
-					system("pause");
-					exit(EXIT_FAILURE);
-				}
-			}
-			else
+			if(connectedServerDataSock == INVALID_SOCKET)
 			{
 				clientDataSock = socket(AF_INET  , SOCK_STREAM , IPPROTO_IP);
 				if(clientDataSock == INVALID_SOCKET){
@@ -189,9 +173,8 @@ void mainMenu()
 					system("pause");
 					exit(EXIT_FAILURE);
 				}
-				getsockname(clientDataSock ,(struct sockaddr *) &clientDataAddr  , &clientDataAddrLen );
+				getsockname(clientDataSock ,(struct sockaddr *) &clientDataAddr  , &clientDataAddrLen ); // send clien data port to server for connecting (getsockname should be after bind...)
 				clientDataPort= ntohs(clientDataAddr.sin_port);
-				listen(clientDataSock , 1 );
 				sprintf(str128 ,"PORT %hu",clientDataPort);
 				sendStatus=send(clientSock , str128 , 1 + strlen(str128) ,0 );
 				if(sendStatus == SOCKET_ERROR)
@@ -203,29 +186,55 @@ void mainMenu()
 					system("pause");
 					exit(EXIT_FAILURE);
 				}
+				listen(clientDataSock , 1 );
+				serverDataAddr.sin_port = htons(serverDataPort);
+				serverDataAddr.sin_addr.S_un.S_addr=inet_addr(serverIpAddress);
+				connectedServerDataSock=accept(clientDataSock , (struct sockaddr *)&serverDataAddr , &serverDataAddrLen);
+				closesocket(clientDataSock); // digar baraye ertebate beyne server va client niazi be in nist va az connectedServerDataSock estefade mishavad..
+				if(connectedServerDataSock == INVALID_SOCKET)
+				{
+					printf("can't accept the server for initiate data connection! ERROR: <%d>\n" , WSAGetLastError());
+					closesocket(clientSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+			}
+			recv(clientSock , reply , 128 , 0);
+			if(strstr(reply , "150") != reply ) // fail to return file or open data connection ...
+			{
+				if( strstr(reply , "554") == reply) // not logged in.
+				{
+					puts("please login or login with another account to access files.");
+				}
+				else if( strstr(reply , "450") == reply)
+				{
+					puts("please after RETR enter the correct Path of the file to get it.");
+				}
+				else // other errors such as network errors ! (dangerous);
+				{
+					puts(reply);
+					closesocket(clientSock);
+					closesocket(connectedServerDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+			}
+			else
+			{
 				i = strlen(argument) -1;
 				while( (i>=0) && (argument[i] != '\\') )
 				{
 					--i;
 				}
-				sprintf(str512 , ".\\ftp_downloads\\%[^\0]", argument + i + 1); // creating file address to be saved in...
+				CreateDirectoryA(".\\ftp_downloads" ,NULL);
+				sprintf(str512 , ".\\ftp_downloads\\%s", argument + i + 1); // creating file address to be saved in...
 				fp = fopen(str512 , "wb");
 				if(fp == NULL){
 					puts("can't create the file in client system.");
 					closesocket(clientSock);
-					closesocket(clientDataSock);
-					WSACleanup();
-					system("pause");
-					exit(EXIT_FAILURE);
-				}
-				serverDataAddr.sin_port = htons(serverDataPort);
-				serverDataAddr.sin_addr.S_un.S_addr=inet_addr(serverIpAddress);
-				connectedServerDataSock=accept(clientDataSock , (struct sockaddr *)&serverDataAddr , &serverDataAddrLen);
-				if(connectedServerDataSock == INVALID_SOCKET)
-				{
-					printf("can't accept the server for initiate data connection! ERROR: <%d>\n" , WSAGetLastError());
-					closesocket(clientSock);
-					closesocket(clientDataSock);
+					closesocket(connectedServerDataSock);
 					WSACleanup();
 					system("pause");
 					exit(EXIT_FAILURE);
@@ -240,6 +249,7 @@ void mainMenu()
 				while(fileBuf[i] != EOF)
 				{
 					fwrite(fileBuf+i,sizeof(char) ,1,fp);
+					++i;
 				}
 				fclose(fp);
 				receiveStatus=recv(clientSock , reply ,128 , 0);
@@ -247,14 +257,12 @@ void mainMenu()
 				if(receiveStatus == SOCKET_ERROR)
 				{
 					puts("ERROR : an error was occured in receiving reply from server .");
-					closesocket(connectedServerDataSock);
-					closesocket(clientDataSock);
 					closesocket(clientSock);
+					closesocket(connectedServerDataSock);
 					WSACleanup();
 					system("pause");
 					exit(EXIT_FAILURE);
 				}
-				closesocket(connectedServerDataSock);
 			}
 		}
 		else if (strcmp(method, "STOR") == 0)
@@ -299,6 +307,8 @@ void mainMenu()
 			 if (receiveStatus == SOCKET_ERROR) {
 				printf("can't receive help from server !\tError-Code : <%d>\n" , WSAGetLastError());
 				closesocket(clientSock);
+				if(connectedServerDataSock != INVALID_SOCKET)
+					closesocket(connectedServerDataSock);
 				WSACleanup();
 				system("pause");
 				exit(EXIT_FAILURE);
