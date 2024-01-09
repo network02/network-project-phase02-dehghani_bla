@@ -248,7 +248,6 @@ void mainMenu()
 				fwrite(fileBuf,sizeof(char) ,i,fp);
 				fclose(fp);
 				receiveStatus=recv(clientSock , reply ,128 , 0);
-				puts(reply);
 				if(receiveStatus == SOCKET_ERROR)
 				{
 					puts("ERROR : an error was occured in receiving reply from server .");
@@ -258,10 +257,120 @@ void mainMenu()
 					system("pause");
 					exit(EXIT_FAILURE);
 				}
+				puts(reply);
 			}
 		}
 		else if (strcmp(method, "STOR") == 0)
 		{
+			if(connectedServerDataSock == INVALID_SOCKET)
+			{
+				clientDataSock = socket(AF_INET  , SOCK_STREAM , IPPROTO_IP);
+				if(clientDataSock == INVALID_SOCKET){
+					puts("client host can't create data socket .");
+					closesocket(clientSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+				clientDataAddr.sin_addr.S_un.S_addr = inet_addr(serverIpAddress);
+				clientDataAddr.sin_port = htons(0); // bind a random port number to clientDataAddr after bind()
+				clientDataAddr.sin_family = AF_INET;
+				bindStatus = bind(clientDataSock , (struct sockaddr *) &clientDataAddr , sizeof(clientDataAddr));
+				if(bindStatus == SOCKET_ERROR)
+				{
+					puts("a problem occured in binding client data socket in client side.");
+					closesocket(clientSock);
+					closesocket(clientDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+				getsockname(clientDataSock ,(struct sockaddr *) &clientDataAddr  , &clientDataAddrLen ); // send clien data port to server for connecting (getsockname should be after bind...)
+				clientDataPort= ntohs(clientDataAddr.sin_port);
+				sprintf(str128 ,"PORT %hu",clientDataPort);
+				sendStatus=send(clientSock , str128 , 1 + strlen(str128) ,0 );
+				if(sendStatus == SOCKET_ERROR)
+				{
+					puts("a problem occured in sending command to server.");
+					closesocket(clientSock);
+					closesocket(clientDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+				listen(clientDataSock , 1 );
+				serverDataAddr.sin_port = htons(serverDataPort);
+				serverDataAddr.sin_addr.S_un.S_addr=inet_addr(serverIpAddress);
+				connectedServerDataSock=accept(clientDataSock , (struct sockaddr *)&serverDataAddr , &serverDataAddrLen);
+				closesocket(clientDataSock); // digar baraye ertebate beyne server va client niazi be in nist va az connectedServerDataSock estefade mishavad..
+				if(connectedServerDataSock == INVALID_SOCKET)
+				{
+					printf("can't accept the server for initiate data connection! ERROR: <%d>\n" , WSAGetLastError());
+					closesocket(clientSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+			}
+			recv(clientSock , reply , 128 , 0);
+			if(strstr(reply , "150") != reply ) // fail to return file or open data connection ...
+			{
+				if( strstr(reply , "555") == reply) // not logged in.
+				{
+					puts(reply);
+				}
+				else if( strstr(reply , "450") == reply)
+				{
+					puts("please after STOR enter the correct Path of client and then server file-path.");
+				}
+				else // other errors such as network errors ! (dangerous);
+				{
+					puts(reply);
+					closesocket(clientSock);
+					closesocket(connectedServerDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+			}
+			else
+			{
+				i=strlen(argument) -1;
+				while(argument[i] != ':') // getting client file path
+					--i;
+				i-=2; // i is index of space between client and server file path
+				strncpy(str256 , argument , i); // i =index of space = size of client address path
+				str256[i]='\0';
+				fp = fopen(str256 , "rb");
+				if(fp == NULL){
+					puts("can't read the file in client system.");
+					closesocket(clientSock);
+					closesocket(connectedServerDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+				i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp);
+				while(i == FILE_BUF_SIZE)
+				{
+					send(connectedServerDataSock , fileBuf , FILE_BUF_SIZE , 0);
+					i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp);
+				}
+				send(connectedServerDataSock , fileBuf , i , 0);
+				fclose(fp);
+				receiveStatus=recv(clientSock , reply ,128 , 0);
+				if(receiveStatus == SOCKET_ERROR)
+				{
+					puts("ERROR : an error was occured in receiving reply from server .");
+					closesocket(clientSock);
+					closesocket(connectedServerDataSock);
+					WSACleanup();
+					system("pause");
+					exit(EXIT_FAILURE);
+				}
+				puts(reply);
+			}
+
 		}
 		else if (strcmp(method, "DELE") == 0)
 		{
