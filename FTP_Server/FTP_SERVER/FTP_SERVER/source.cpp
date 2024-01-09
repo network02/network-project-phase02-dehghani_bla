@@ -138,7 +138,7 @@ char helpMessage[SIZE_OF_HELP_MESSAGE]=
 "2_ \"PASS\" : format:(PASS <password>) discussion:(this command usage is after USER command for sending password to the server\n"
 "2_ \"LIST\" : format:(LIST <pathname>) discussion:(this command will list files and directories on server .pathname argument is not mandatory)\n"
 "3_ \"RETR\" : format:(RETR <file pathname>) discussion:(this command will return file stored at pathname on server.)\n"
-"4_ \"STOR\" : format:(STOR <client file pathname> <server file pathname>) discussion:(this command will store client file on server. if in server alredy exist will replace)\n"
+"4_ \"STOR\" : format:(STOR <\"client file pathname\"> <\"server file pathname\">) discussion:(this command will store client file on server. if in server alredy exist will replace)\n"
 "5_ \"DELE\" : format:(DELE <pathname>) discussion:(this command will delete file stored at pathname on server .)\n"
 "6_ \"MKD\" : format:(MKD <pathname>) discussion:(this command will create a directory on server with address pathname .)\n"
 "7_ \"RMD\" : format:(RMD <pathname>) discussion:(this command will remove a directory on server with address pathname .)\n"
@@ -242,6 +242,8 @@ void service(void)
 	unsigned long clientDataIp;
 	struct sockaddr_in serverDataAddr;
 	int error_detected;
+	char tmp256[256];
+	int j;
 	do
 	{
 		struct userSpecifications currentUser;
@@ -506,11 +508,59 @@ void service(void)
 				}
 				else
 				{
-					i=strlen(argument) -1;
-					while(argument[i] != ':') // getting server save path
-						--i;
-					--i; // i is index of beginning of server path
-					strcpy(str256 , argument + i);
+					if(argument[strlen(argument) -1 ] != '\"')
+					{
+						if(argument[0] != '\"') // har 2 address bedune "
+						{
+							sscanf(argument , "%s %s" , tmp256 , str256);
+						}
+						else // client address ba " vali server address bedune "
+						{
+							i=1;
+							while(argument[i] != '\"')
+								++i;
+							++i; // i = index of  between client and server file path
+							sscanf(argument+i , "%s" , str256);
+						}
+					}
+					else // server path has "path" format
+					{
+						if(argument[0] != '\"') // client path has not "path" format but server path begins with "
+						{
+							i=1;
+							while(argument[i] != '\"')
+								++i;
+							++i; // i = index of beginning of server file path
+							j=0;
+							while(argument[i] !='\"')
+							{
+								str256[j]=argument[i];
+								++i;
+								++j;
+							}
+							str256[j] = '\0';
+							//sscanf(argument + i , "%[^\"]",str256);		// equivalent to above code (from j=0 to str256[j]=0)
+						}
+						else // client and server both have format "path"
+						{
+							i=1;
+							while(argument[i] != '\"')
+								++i;
+							++i; // i = index of after second " of client path
+							while(argument[i] != '\"')
+								++i;
+							++i; // index of beginnig of server file path address
+							j=0;
+							while(argument[i] !='\"')
+							{
+								str256[j]=argument[i];
+								++i;
+								++j;
+							}
+							str256[j] = '\0';
+							//sscanf(argument + i , "%[^\"]" , str256);		// equivalent to above code (from j=0 to str256[j]=0)
+						}
+					}
 					fp=fopen(str256 , "wb");
 					if(fp == NULL)
 					{

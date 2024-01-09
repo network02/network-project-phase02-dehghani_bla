@@ -335,12 +335,14 @@ void mainMenu()
 			}
 			else
 			{
-				i=strlen(argument) -1;
-				while(argument[i] != ':') // getting client file path
-					--i;
-				i-=2; // i is index of space between client and server file path
-				strncpy(str256 , argument , i); // i =index of space = size of client address path
-				str256[i]='\0';
+				if(argument[0] != '\"')
+				{
+					sscanf(argument , "%s" , str256); //sscanf(argument , "%[^\" ]" , str256); in ham mitavan gozasht ke agar server path " dasht va be client path chasbunde bud dorost dar biad.
+				}
+				else
+				{
+					sscanf(argument+1 , "%[^\"]" , str256);
+				}
 				fp = fopen(str256 , "rb");
 				if(fp == NULL){
 					puts("can't read the file in client system.");
