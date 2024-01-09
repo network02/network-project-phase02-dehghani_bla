@@ -437,8 +437,7 @@ void service(void)
 							send(serverDataSock , fileBuf , FILE_BUF_SIZE , 0);
 							i = fread(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp );
 						}
-						fileBuf[i]=EOF;
-						send(serverDataSock , fileBuf , i+1 , 0);
+						send(serverDataSock , fileBuf , i , 0);
 						send(connectedControlSock , reply[reply_code_index_find(250)] , 1 + strlen(reply[reply_code_index_find(250)]) , 0);
 					}
 				}

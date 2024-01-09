@@ -239,18 +239,13 @@ void mainMenu()
 					system("pause");
 					exit(EXIT_FAILURE);
 				}
-				recv(connectedServerDataSock , fileBuf , FILE_BUF_SIZE , 0);
-				while(fileNotEnded(fileBuf , FILE_BUF_SIZE))
+				i = recv(connectedServerDataSock , fileBuf , FILE_BUF_SIZE , 0);
+				while(i == FILE_BUF_SIZE)
 				{
 					fwrite(fileBuf , sizeof(char) , FILE_BUF_SIZE , fp);
-					recv(connectedServerDataSock , fileBuf , FILE_BUF_SIZE , 0);
+					i = recv(connectedServerDataSock , fileBuf , FILE_BUF_SIZE , 0);
 				}
-				i=0;
-				while(fileBuf[i] != EOF)
-				{
-					fwrite(fileBuf+i,sizeof(char) ,1,fp);
-					++i;
-				}
+				fwrite(fileBuf,sizeof(char) ,i,fp);
 				fclose(fp);
 				receiveStatus=recv(clientSock , reply ,128 , 0);
 				puts(reply);
